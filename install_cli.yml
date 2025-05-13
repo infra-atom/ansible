@@ -1,0 +1,58 @@
+---
+- hosts: '{{ SM_ENVIRONMENT }}'
+  become: true
+  gather_facts: yes
+  serial: "20%"
+  vars:
+    - AWS_PROFILE: d-mp
+    - AWS_ACCESS_KEY: "A"
+    - AWS_SECRET_KEY: "A"
+    - AWS_REGION: "eu-st-1"
+    - AWS_FORMAT: "table"
+    - AWS_SYSTEM_USER : ubuntu
+
+  tasks:
+    - name: Install package dependency
+      ansible.builtin.apt:
+        pkg:
+        - unzip
+        state: latest
+
+    - name: Download the aws cli
+      ansible.builtin.get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+        #mode: '0664'
+
+    - name: Extract awscliv2.zip into /tmp/
+      ansible.builtin.unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp/
+        remote_src: yes
+        #extra_opts:
+        #- -qq
+
+    - name: Install awscli package
+      shell: ./aws/install -i /usr/local/aws-cli -b /usr/local/bin/ --update
+      args:
+        chdir: /tmp/
+      tags: Install awscli
+
+    - name: Check version
+      shell: aws --version
+
+    - name: Delete awscli archive
+      file:
+        state: absent
+        path: /tmp/awscliv2.zip
+
+    - name: Configure AWS
+      shell: aws configure set {{ item.key }} {{ item.value }}  --profile {{ AWS_PROFILE }}
+      no_log: True
+      with_dict:
+        aws_access_key_id: "{{ AWS_ACCESS_KEY }}"
+        aws_secret_access_key: "{{ AWS_SECRET_KEY }}"
+        region: "{{ AWS_REGION }}"
+        format: "{{ AWS_FORMAT }}"
+      become_user: "{{ AWS_SYSTEM_USER }}"
+      changed_when: false
