@@ -1,0 +1,70 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  serial: "20%"
+  vars:
+    - IMAGE_SF_REPO: 7975.dkr.ecr.eu-st.amazonaws.com/rt-{{STEND_ENV_DIR}}-repo
+    - IMAGE_AG_REPO: 7975.dkr.ecr.eu-st.amazonaws.com/rt-{{STEND_ENV_DIR}}-repo
+    - SM_VERSION: S2X_unix_4_20_0.tar.gz
+    - SM_VER_PATCH: S2X-Patch-4.20.3.zip
+    - SM_VER_PATCH_UNZIP: S2X-Patch-4.20.3
+      #- STEND_ENV_DIR: dev
+    - VERSION_SF: 4.20.3
+    - VERSION_AG: 4.20.3
+
+  tasks:
+   - name: Get aws ecr token
+     #shell: "$(aws --profile dr3-mp ecr get-login-password --region eu-west-3 | docker login --username AWS --password-stdin 7975.dkr.ecr.eu-st.amazonaws.com)"
+     ansible.builtin.shell:
+       cmd: sudo -H -u ubuntu bash -c "aws ecr get-login-password --region eu-west-3 --profile dr3-mp | docker login --username AWS --password-stdin 7975.dkr.ecr.eu-st.amazonaws.com"
+       chdir: /home/ubuntu/
+     register: result
+     failed_when: not (('unencrypted' in result.stderr) or ('Verifying Checksum' in result.stderr))
+   - debug: var=result.stdout_lines
+   - debug: var=result.stderr_lines
+
+   - name: Print return information from the previous task
+     ansible.builtin.debug:
+       var: result
+       verbosity: 4
+
+   - name: "Build image sm"
+     ansible.builtin.shell:
+       cmd: sudo -H -u ubuntu bash -c "docker build -t {{ IMAGE_SF_REPO }}:{{ VERSION_SF }} --build-arg SM_VERSION={{ SM_VERSION }} --build-arg SM_VERc_PATCH={{ SM_VER_PATCH }}  --build-arg SM_VER_PATCH_UNZIP={{ SM_VER_PATCH_UNZIP }} --build-arg STEND_ENV_DIR={{ STEND_ENV_DIR }} -f /home/ubuntu/build_images_compose/sm/Dockerfile ."
+       chdir: build_images_compose/sm/
+     register: build_sf
+   - debug: var=build_sf.stdout_lines
+     become: true
+     become_user: ubuntu
+
+   - name: "Build image ag"
+     ansible.builtin.shell:
+       cmd: sudo -H -u ubuntu bash -c "docker build -t {{ IMAGE_AG_REPO }}:{{ VERSION_AG }} -f /home/ubuntu/build_images_compose/ag/Dockerfile ."
+       chdir: build_images_compose/ag/
+     register: build_ag
+   - debug: var=build_ag.stdout_lines
+     become: true
+     become_user: ubuntu
+
+   - name: "Show directory"
+     command: "pwd"
+     register: show_pwd
+   - debug: var=show_pwd.stdout_lines
+
+   - name: "Show images"
+     command: "chdir=/home/ubuntu/ sudo docker images"
+     register: show_images
+   - debug: var=show_images.stdout_lines
+
+   - name: "Push image sm"
+     ansible.builtin.shell:
+       cmd: sudo -H -u ubuntu bash -c "docker push {{ IMAGE_SF_REPO }}:{{ VERSION_SF }}"
+     register: push_sf
+   - debug: var=push_sf.stdout_lines
+
+   - name: "Push image ag"
+     ansible.builtin.shell:
+       cmd: sudo -H -u ubuntu bash -c "docker push {{ IMAGE_AG_REPO }}:{{ VERSION_AG }}"
+     register: push_ag
+   - debug: var=push_ag.stdout_lines
