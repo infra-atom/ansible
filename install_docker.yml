@@ -1,0 +1,60 @@
+---
+- hosts: '{{ SM_ENVIRONMENT }}'
+  become: true
+  gather_facts: yes
+  serial: "20%"
+  vars:
+    - DEB_ARCHITECTURE: "amd64"
+
+  tasks:
+    - name: Remove package
+      ansible.builtin.apt:
+        pkg:
+        - docker
+        - docker-engine
+        - docker.io
+        - containerd
+        - runc
+        state: absent
+
+    - name: Install required system packages
+      ansible.builtin.apt:
+        pkg:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg-agent
+        - gnupg
+        - lsb-release
+        - software-properties-common
+        state: latest
+        update_cache: true
+
+    - name: Add signing key
+      ansible.builtin.apt_key:
+        url: "https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg "
+        state: present
+
+    - name: Add repository into sources list
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ DEB_ARCHITECTURE }}] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Install docker-ce
+      ansible.builtin.apt:
+        pkg:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-buildx-plugin
+        - docker-compose-plugin
+        state: latest
+        update_cache: true
+
+    - name: Add user ubuntu the docker group
+      ansible.builtin.user:
+        name: ubuntu
+        groups: "docker"
+        append: true
+      become: true
