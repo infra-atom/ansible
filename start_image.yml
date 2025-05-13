@@ -1,0 +1,32 @@
+---
+- hosts: '{{ SM_ENVIRONMENT }}'
+  gather_facts: False
+  serial: "10%"
+  vars:
+    - RT_REPO: 7975.dkr.ecr.ee-st-5.amazonaws.com/rt-{{STEND_ENV_DIR}}-repo
+  tasks:
+    - name: Show images
+      command: "docker images"
+      register: show_images
+    - debug: var=show_images.stdout_lines
+
+
+    - name: Show containers
+      command: "docker ps"
+      register: show_containers
+    - debug: var=show_containers.stdout_lines
+
+
+    - shell: "$(cd /opt/{{DIRS_ENV}} ; docker compose down)"
+      register: remove_containers_result
+      failed_when: not "'requires at least 1 argument' in remove_containers_result.stderr"
+    - debug: var=remove_containers_result.stdout_lines
+    - debug: var=remove_containers_result.stderr_lines
+
+    - name: Start containers
+      ansible.builtin.shell:
+        cmd: sudo -H -u ubuntu bash -c "cd /opt/{{DIRS_ENV}} ; RT_REPO_COMPOSE={{ RT_REPO }} VERSION_SF_COMPOSE={{ VERSION_SF }} VERSION_AG_COMPOSE={{ VERSION_AG }} DIRS_ENV_COMPOSE={{ DIRS_ENV }} CO
+NFIG_FOLDER_COMPOSE={{ CONFIG_FOLDER }} M_AGENT_ENV={{ m_agent_env }} FULL_HOSTNAME={{ full_hostname }} docker compose up -d"
+      register: start_compose_result
+    - debug: var=start_compose_result.stdout_lines
+    - debug: var=start_compose_result.stderr_lines
